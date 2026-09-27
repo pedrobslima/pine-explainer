@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from transformers import AutoTokenizer, AutoModel
 from typing import Callable, Dict, List, Optional, Tuple
 import time
 from contextlib import contextmanager
@@ -125,6 +126,8 @@ def extract_correlated_token_pairs(
     n_sample: int,
     random_state: int,
     fit_intercept: bool,
+    model: AutoModel,
+    tokenizer: AutoTokenizer,
     batch_size: int = 512,
     language: str = "en",
     profile: Optional[RuntimeProfile] = None,
@@ -173,7 +176,10 @@ def extract_correlated_token_pairs(
                 )
         idx_pairs = list(word_pair_dic.keys())
         sims_all = calculate_cosine_similarities_with_mean_pooling(
-            [word_pair_dic[idx_pair] for idx_pair in idx_pairs], batch_size=batch_size
+            [word_pair_dic[idx_pair] for idx_pair in idx_pairs],
+            model=model,
+            tokenizer=tokenizer,
+            batch_size=batch_size
         )
         word_pair_sims = {idx: sim for idx, sim in zip(idx_pairs, sims_all)}
 
@@ -263,10 +269,8 @@ def extract_correlated_token_pair_cossim(
     entity_pair: EntityPair,
     score_fn: Callable,
     topk: int,
-    kernel: Callable,
-    n_sample: int,
-    random_state: int,
-    fit_intercept: bool,
+    model: AutoModel,
+    tokenizer: AutoTokenizer,
     batch_size: int = 512,
     language: str = "en",
     profile: Optional[RuntimeProfile] = None,
@@ -297,7 +301,10 @@ def extract_correlated_token_pair_cossim(
                 )
         idx_pairs = list(word_pair_dic.keys())
         sims_all = calculate_cosine_similarities_with_mean_pooling(
-            [word_pair_dic[idx_pair] for idx_pair in idx_pairs], batch_size=batch_size
+            [word_pair_dic[idx_pair] for idx_pair in idx_pairs],
+            model=model,
+            tokenizer=tokenizer,
+            batch_size=batch_size
         )
         word_pair_sims = {idx: sim for idx, sim in zip(idx_pairs, sims_all)}
 
@@ -382,8 +389,6 @@ def extract_correlated_token_pairs_lime_pair(
     n_sample: int,
     random_state: int,
     fit_intercept: bool,
-    batch_size: int = 512,
-    language: str = "en",
     profile: Optional[RuntimeProfile] = None,
 ) -> List[PairSegment]:
     """対応したセグメントのリストを作成。score順に返す。"""
@@ -468,8 +473,6 @@ def extract_correlated_token_pairs_lime_rank(
     n_sample: int,
     random_state: int,
     fit_intercept: bool,
-    batch_size: int = 512,
-    language: str = "en",
     profile: Optional[RuntimeProfile] = None,
 ) -> List[PairSegment]:
     """対応したセグメントのリストを作成。score順に返す。"""
@@ -572,6 +575,8 @@ def make_explanation(
     n_sample: int = None,
     random_state: int = 0,
     fit_intercept: bool = True,
+    model: AutoModel = None,
+    tokenizer: AutoTokenizer = None,
     batch_size: int = 512,
     language: str = "en",
     method: str = "default",
@@ -589,26 +594,33 @@ def make_explanation(
     with timer("end_to_end"):
         with timer("step1_total"):
             # STEP1:Extracting the Top K Contributing Correlated Token Pairs
+            lime_kwargs = {
+                "kernel":kernel,"n_sample":n_sample,
+                "random_state":random_state,"fit_intercept":fit_intercept,
+                }
+            cossim_kwargs = {
+                "model":model,"tokenizer":tokenizer,
+                "batch_size":batch_size,"language":language,
+                }
             if method == "default":
                 step1_func = extract_correlated_token_pairs
+                step_1_kwargs = dict(lime_kwargs, **cossim_kwargs)
             elif method == "cossim":
                 step1_func = extract_correlated_token_pair_cossim
+                step_1_kwargs = cossim_kwargs
             elif method == "lime_pair":
                 step1_func = extract_correlated_token_pairs_lime_pair
+                step_1_kwargs = lime_kwargs
             elif method == "lime_rank":
                 step1_func = extract_correlated_token_pairs_lime_rank
+                step_1_kwargs = lime_kwargs
             else:
                 raise ValueError(f"Invalid method: {method}")
             pair_segments = step1_func(
                 entity_pair,
                 score_fn,
                 topk,
-                kernel,
-                n_sample,
-                random_state,
-                fit_intercept=fit_intercept,
-                batch_size=batch_size,
-                language=language,
+                **step_1_kwargs,
                 profile=profile,
             )
         merge_segments: List[MergedSegment] = []

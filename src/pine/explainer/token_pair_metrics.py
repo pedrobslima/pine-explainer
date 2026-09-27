@@ -8,15 +8,12 @@ import numpy as np
 nltk.download("wordnet")
 nltk.download("omw-2.0")
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-# モデルとトークナイザーの準備
-bert_model_name = "bert-base-uncased"
-bert_tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
-bert_model = AutoModel.from_pretrained(bert_model_name).to(device)
-
-
-def calculate_cosine_similarities_with_mean_pooling(word_pairs, batch_size:int=512):
+def calculate_cosine_similarities_with_mean_pooling(
+        word_pairs,
+        model: AutoModel,
+        tokenizer: AutoTokenizer,
+        batch_size:int=512
+):
     similarities = np.array([])
     # 0件なら0件で返す
     if len(word_pairs) == 0:
@@ -38,16 +35,16 @@ def calculate_cosine_similarities_with_mean_pooling(word_pairs, batch_size:int=5
         word1_list = [pair[0] for pair in word_pairs_batch]
         word2_list = [pair[1] for pair in word_pairs_batch]
 
-        inputs1 = bert_tokenizer(
+        inputs1 = tokenizer(
             word1_list, return_tensors="pt", truncation=True, padding=True, max_length=128
-        ).to(bert_model.device)
-        inputs2 = bert_tokenizer(
+        ).to(model.device)
+        inputs2 = tokenizer(
             word2_list, return_tensors="pt", truncation=True, padding=True, max_length=128
-        ).to(bert_model.device)
+        ).to(model.device)
 
         with torch.no_grad():
-            outputs1 = bert_model(**inputs1)
-            outputs2 = bert_model(**inputs2)
+            outputs1 = model(**inputs1)
+            outputs2 = model(**inputs2)
 
         # 平均Poolingを行う
         mask1 = (
