@@ -82,7 +82,7 @@ def get_hypernyms_recursive(synset, depth=2):
     return hypernyms
 
 
-def determine_word_relationship(word1: str, word2: str, hypernym_depth: int = 2, language: str = "en") -> str:
+def determine_word_relationship(word1: str, word2: str, hypernym_depth: int = 2, language: str = "eng") -> str:
     # 同義語、対義語、同カテゴリのフラグを初期化
     is_synonym = False
     is_antonym = False

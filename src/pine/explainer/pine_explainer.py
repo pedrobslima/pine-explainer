@@ -129,7 +129,7 @@ def extract_correlated_token_pairs(
     model: AutoModel,
     tokenizer: AutoTokenizer,
     batch_size: int = 512,
-    language: str = "en",
+    language: str = "eng",
     profile: Optional[RuntimeProfile] = None,
 ) -> List[PairSegment]:
     """対応したセグメントのリストを作成。score順に返す。"""
@@ -272,7 +272,7 @@ def extract_correlated_token_pair_cossim(
     model: AutoModel,
     tokenizer: AutoTokenizer,
     batch_size: int = 512,
-    language: str = "en",
+    language: str = "eng",
     profile: Optional[RuntimeProfile] = None,
 ) -> List[PairSegment]:
     """対応したセグメントのリストを作成。score順に返す。"""
@@ -578,7 +578,7 @@ def make_explanation(
     model: AutoModel = None,
     tokenizer: AutoTokenizer = None,
     batch_size: int = 512,
-    language: str = "en",
+    language: str = "eng",
     method: str = "default",
     profile: Optional[RuntimeProfile] = None,
 ) -> Tuple[LimeResultPair, EntityPair]:
