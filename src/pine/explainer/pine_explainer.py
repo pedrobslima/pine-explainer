@@ -126,6 +126,7 @@ def extract_correlated_token_pairs(
     random_state: int,
     fit_intercept: bool,
     batch_size: int = 512,
+    language: str = "en",
     profile: Optional[RuntimeProfile] = None,
 ) -> List[PairSegment]:
     """対応したセグメントのリストを作成。score順に返す。"""
@@ -179,7 +180,7 @@ def extract_correlated_token_pairs(
         # 全単語ペアの関連性を判定
         word_pair_relationships = {}
         for (l_idx, r_idx), (word1, word2) in word_pair_dic.items():
-            relationship = determine_word_relationship(word1, word2, hypernym_depth=1)
+            relationship = determine_word_relationship(word1, word2, hypernym_depth=1, language=language)
             word_pair_relationships[l_idx, r_idx] = relationship
 
         # Create candidate token pairs
@@ -267,6 +268,7 @@ def extract_correlated_token_pair_cossim(
     random_state: int,
     fit_intercept: bool,
     batch_size: int = 512,
+    language: str = "en",
     profile: Optional[RuntimeProfile] = None,
 ) -> List[PairSegment]:
     """対応したセグメントのリストを作成。score順に返す。"""
@@ -302,7 +304,7 @@ def extract_correlated_token_pair_cossim(
         # 全単語ペアの関連性を判定
         word_pair_relationships = {}
         for (l_idx, r_idx), (word1, word2) in word_pair_dic.items():
-            relationship = determine_word_relationship(word1, word2, hypernym_depth=1)
+            relationship = determine_word_relationship(word1, word2, hypernym_depth=1, language=language)
             word_pair_relationships[l_idx, r_idx] = relationship
 
         # Create candidate token pairs
@@ -381,6 +383,7 @@ def extract_correlated_token_pairs_lime_pair(
     random_state: int,
     fit_intercept: bool,
     batch_size: int = 512,
+    language: str = "en",
     profile: Optional[RuntimeProfile] = None,
 ) -> List[PairSegment]:
     """対応したセグメントのリストを作成。score順に返す。"""
@@ -466,6 +469,7 @@ def extract_correlated_token_pairs_lime_rank(
     random_state: int,
     fit_intercept: bool,
     batch_size: int = 512,
+    language: str = "en",
     profile: Optional[RuntimeProfile] = None,
 ) -> List[PairSegment]:
     """対応したセグメントのリストを作成。score順に返す。"""
@@ -569,6 +573,7 @@ def make_explanation(
     random_state: int = 0,
     fit_intercept: bool = True,
     batch_size: int = 512,
+    language: str = "en",
     method: str = "default",
     profile: Optional[RuntimeProfile] = None,
 ) -> Tuple[LimeResultPair, EntityPair]:
@@ -603,6 +608,7 @@ def make_explanation(
                 random_state,
                 fit_intercept=fit_intercept,
                 batch_size=batch_size,
+                language=language,
                 profile=profile,
             )
         merge_segments: List[MergedSegment] = []

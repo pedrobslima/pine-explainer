@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 nltk.download("wordnet")
+nltk.download("omw-2.0")
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -84,15 +85,15 @@ def get_hypernyms_recursive(synset, depth=2):
     return hypernyms
 
 
-def determine_word_relationship(word1: str, word2: str, hypernym_depth: int = 2) -> str:
+def determine_word_relationship(word1: str, word2: str, hypernym_depth: int = 2, language: str = "en") -> str:
     # 同義語、対義語、同カテゴリのフラグを初期化
     is_synonym = False
     is_antonym = False
     is_same_category = False
 
     # word1とword2のシンセットを取得
-    synsets1 = wn.synsets(word1)
-    synsets2 = wn.synsets(word2)
+    synsets1 = wn.synsets(word1, lang=language)
+    synsets2 = wn.synsets(word2, lang=language)
 
     # 同義語かどうかを判別
     for synset1 in synsets1:
