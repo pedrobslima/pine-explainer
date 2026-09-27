@@ -565,88 +565,155 @@ def extract_correlated_token_pairs_lime_rank(
 
     return pair_segment_list_filtered
 
+class _BasePineExplainer:
+    def __init__(
+            self,
+            method: Callable[...,List[PairSegment]],
+            **configs
+    ):
+        self.step1 = method
+        self.configs = configs
 
-def make_explanation(
-    entity_pair: EntityPair,
-    score_fn: Callable[[List[EntityPair]], np.ndarray],
-    topk: int,
-    *,
-    kernel: Callable = kernel,
-    n_sample: int = None,
-    random_state: int = 0,
-    fit_intercept: bool = True,
-    model: AutoModel = None,
-    tokenizer: AutoTokenizer = None,
-    batch_size: int = 512,
-    language: str = "eng",
-    method: str = "default",
-    profile: Optional[RuntimeProfile] = None,
-) -> Tuple[LimeResultPair, EntityPair]:
-    """Explain the prediction of the model using PINE."""
-    if profile is None:
-        @contextmanager
-        def _noop(_):
-            yield
-        timer = _noop
-    else:
-        timer = profile.timer
+    def make_explanation(
+            self,
+            entity_pair: EntityPair,
+            score_fn: Callable[[List[EntityPair]], np.ndarray],
+            topk: int,
+            *,
+            fit_intercept: bool = True,
+            profile: Optional[RuntimeProfile] = None,
+    ) -> Tuple[LimeResultPair, EntityPair]:
+        """Explain the prediction of the model using PINE."""
+        if profile is None:
+            @contextmanager
+            def _noop(_):
+                yield
+            timer = _noop
+        else:
+            timer = profile.timer
 
-    with timer("end_to_end"):
-        with timer("step1_total"):
-            # STEP1:Extracting the Top K Contributing Correlated Token Pairs
-            lime_kwargs = {
-                "kernel":kernel,"n_sample":n_sample,
-                "random_state":random_state,"fit_intercept":fit_intercept,
-                }
-            cossim_kwargs = {
-                "model":model,"tokenizer":tokenizer,
-                "batch_size":batch_size,"language":language,
-                }
-            if method == "default":
-                step1_func = extract_correlated_token_pairs
-                step_1_kwargs = dict(lime_kwargs, **cossim_kwargs)
-            elif method == "cossim":
-                step1_func = extract_correlated_token_pair_cossim
-                step_1_kwargs = cossim_kwargs
-            elif method == "lime_pair":
-                step1_func = extract_correlated_token_pairs_lime_pair
-                step_1_kwargs = lime_kwargs
-            elif method == "lime_rank":
-                step1_func = extract_correlated_token_pairs_lime_rank
-                step_1_kwargs = lime_kwargs
-            else:
-                raise ValueError(f"Invalid method: {method}")
-            pair_segments = step1_func(
-                entity_pair,
-                score_fn,
-                topk,
-                **step_1_kwargs,
-                profile=profile,
-            )
-        merge_segments: List[MergedSegment] = []
-        for pair_seg in pair_segments:
-            merge_seg = MergedSegment([], [])
-            if pair_seg.index_l is not None:
-                merge_seg.segment_list_in_l.append(pair_seg.index_l)
-            if pair_seg.index_r is not None:
-                merge_seg.segment_list_in_r.append(pair_seg.index_r)
-            merge_segments.append(merge_seg)
-        entity_pair_merged = entity_pair.make_entity_pair_by_merging_segment_list_only(
-            merge_segments
-        )
-        # Explanation対象のペアがない場合は、空のLimeResultPairを返す
-        if len(pair_segments) == 0:
-            match_score = score_fn([entity_pair])[0][0]
-            return LimeResultPair([], match_score, None, None, None), entity_pair_merged
-
-        with timer("step2_total"):
-            # STEP2: Calculating Attribution Scores via LIME
-            lime_result_pair = LimeResultPair(
-                *lime_make_explanation_without_separate_lr(
-                    entity_pair_merged, score_fn, fit_intercept=fit_intercept
+        with timer("end_to_end"):
+            with timer("step1_total"):
+                # STEP1:Extracting the Top K Contributing Correlated Token Pairs
+                pair_segments = self.step1(
+                    entity_pair,
+                    score_fn,
+                    topk,
+                    **self.configs,
+                    profile=profile,
                 )
+            merge_segments: List[MergedSegment] = []
+            for pair_seg in pair_segments:
+                merge_seg = MergedSegment([], [])
+                if pair_seg.index_l is not None:
+                    merge_seg.segment_list_in_l.append(pair_seg.index_l)
+                if pair_seg.index_r is not None:
+                    merge_seg.segment_list_in_r.append(pair_seg.index_r)
+                merge_segments.append(merge_seg)
+            entity_pair_merged = entity_pair.make_entity_pair_by_merging_segment_list_only(
+                merge_segments
             )
-            lime_result_pair.attributions = sorted(
-                lime_result_pair.attributions, key=lambda x: abs(x.score), reverse=True
+            # Explanation対象のペアがない場合は、空のLimeResultPairを返す
+            if len(pair_segments) == 0:
+                match_score = score_fn([entity_pair])[0][0]
+                return LimeResultPair([], match_score, None, None, None), entity_pair_merged
+
+            with timer("step2_total"):
+                # STEP2: Calculating Attribution Scores via LIME
+                lime_result_pair = LimeResultPair(
+                    *lime_make_explanation_without_separate_lr(
+                        entity_pair_merged, score_fn, fit_intercept=fit_intercept
+                    )
+                )
+                lime_result_pair.attributions = sorted(
+                    lime_result_pair.attributions, key=lambda x: abs(x.score), reverse=True
+                )
+        return lime_result_pair, entity_pair_merged
+
+class PineExplainer(_BasePineExplainer):
+    def __init__(
+            self,
+            kernel: Callable = kernel,
+            n_sample: int = None,
+            random_state: int = 0,
+            fit_intercept: bool = True,
+            model: AutoModel = None,
+            tokenizer: AutoTokenizer = None,
+            batch_size: int = 512,
+            language: str = "eng"
+    ):
+        if None in [model, tokenizer]:
+            from torch.cuda import is_available as cuda_available
+            device = "cuda" if cuda_available() else "cpu"
+            if model is None:
+                model = AutoModel.from_pretrained("bert-base-uncased").to(device)
+            if tokenizer is None:
+                tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+
+        super().__init__(
+            method=extract_correlated_token_pairs,
+            kernel=kernel,
+            n_sample=n_sample,
+            random_state=random_state,
+            fit_intercept=fit_intercept,
+            batch_size=batch_size,
+            model=model,
+            tokenizer=tokenizer,
+            language=language,
             )
-    return lime_result_pair, entity_pair_merged
+
+class CosSimPineExplainer(_BasePineExplainer):
+    def __init__(
+            self,
+            model: AutoModel = None,
+            tokenizer: AutoTokenizer = None,
+            batch_size: int = 512,
+            language: str = "eng"
+    ):
+        if None in [model, tokenizer]:
+            from torch.cuda import is_available as cuda_available
+            device = "cuda" if cuda_available() else "cpu"
+            if model is None:
+                model = AutoModel.from_pretrained("bert-base-uncased").to(device)
+            if tokenizer is None:
+                tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+
+        super().__init__(
+            method=extract_correlated_token_pair_cossim,
+            batch_size=batch_size,
+            model=model,
+            tokenizer=tokenizer,
+            language=language,
+            )
+
+class LimePairPineExplainer(_BasePineExplainer):
+    def __init__(
+            self,
+            kernel: Callable = kernel,
+            n_sample: int = None,
+            random_state: int = 0,
+            fit_intercept: bool = True,
+    ):
+        super().__init__(
+            method=extract_correlated_token_pairs_lime_pair,
+            kernel=kernel,
+            n_sample=n_sample,
+            random_state=random_state,
+            fit_intercept=fit_intercept,
+            )
+
+class LimeRankPineExplainer(_BasePineExplainer):
+    def __init__(
+            self,
+            kernel: Callable = kernel,
+            n_sample: int = None,
+            random_state: int = 0,
+            fit_intercept: bool = True,
+    ):
+        super().__init__(
+            method=extract_correlated_token_pairs_lime_rank,
+            kernel=kernel,
+            n_sample=n_sample,
+            random_state=random_state,
+            fit_intercept=fit_intercept,
+            )

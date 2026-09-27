@@ -3,7 +3,7 @@ from torch.cuda import is_available as cuda_available
 
 from pine.entity import Attribute, Entity, EntityPair
 from pine.explainer.pine_explainer import (
-    make_explanation,
+    PineExplainer,
 )
 from pine.matcher.magellan_matcher import make_magellan_matcher_func
 
@@ -33,10 +33,12 @@ def test_make_explanation():
     entity_pair = EntityPair(entity_l, entity_r)
     topk = 5
 
-    lime_result_pair, entity_pair_merged = make_explanation(
-        entity_pair, predict_proba_func, topk, 
+    explainer = PineExplainer(
         model=bert_model, tokenizer=bert_tokenizer, n_sample=1000, random_state=0
-        )
+    )
+    lime_result_pair, entity_pair_merged = explainer.make_explanation(
+        entity_pair, predict_proba_func, topk
+    )
 
     assert len(lime_result_pair.attributions) <= topk
     assert len(lime_result_pair.attributions) == entity_pair_merged.segment_size()
