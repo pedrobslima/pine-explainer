@@ -26,7 +26,7 @@ def _get_best_model_checkpoint_dir(checkpoints_dir_path: pathlib.Path) -> pathli
     return pathlib.Path((state.best_model_checkpoint))
 
 
-def load_transfofmer(model_name)->Tuple[AutoModelForSequenceClassification, AutoTokenizer]:
+def load_transformer(model_name)->Tuple[AutoModelForSequenceClassification, AutoTokenizer]:
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     return model, tokenizer
@@ -34,7 +34,7 @@ def load_transfofmer(model_name)->Tuple[AutoModelForSequenceClassification, Auto
 
 def load_transformer_pred_func(model_name)->Callable[[List[str], List[str]], torch.Tensor]:
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model, tokenizer = load_transfofmer(model_name)
+    model, tokenizer = load_transformer(model_name)
     model.to(device)
     model.eval()
 
